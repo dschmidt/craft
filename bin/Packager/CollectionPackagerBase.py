@@ -193,7 +193,7 @@ class CollectionPackagerBase(PackagerBase):
             blackList = self.blacklist
         for pattern in blackList:
             if pattern.search(filename):
-                CraftCore.log.debug(f"{filename} is {message}: {pattern.pattern}")
+                #CraftCore.log.debug(f"{filename} is {message}: {pattern.pattern}")
                 return True
         return False
 
@@ -249,7 +249,7 @@ class CollectionPackagerBase(PackagerBase):
         """
         CraftCore.log.debug("Copying %s -> %s" % (srcDir, destDir))
 
-        doSign = CraftCore.compiler.isWindows and CraftCore.settings.getboolean("CodeSigning", "Enabled", False)
+        doSign = CraftCore.settings.getboolean("CodeSigning", "Enabled", False)
 
         for entry in self.traverse(srcDir, self.whitelisted, self.blacklisted):
             entry_target = os.path.join(destDir, os.path.relpath(entry, srcDir))
@@ -271,7 +271,7 @@ class CollectionPackagerBase(PackagerBase):
         if not super().internalPostInstall():
             return False
 
-        if self._doDumpSymbols:
+        if self.isSymbolDumpingEnabled:
             for entry in self.traverse(self.imageDir(), self.whitelisted, self.blacklisted):
                 if self.isBinary(entry):
                     self._dumpSymbols(entry)
@@ -326,12 +326,13 @@ class CollectionPackagerBase(PackagerBase):
             regex = r"symbols%s.*" % sep
             self.whitelist.append(re.compile(regex))
 
+        print("COPY TO %s" % archiveDir)
         for directory, strip in self.__getImageDirectories():
             if os.path.exists(directory):
                 if not self.copyFiles(directory, archiveDir, strip):
                     return False
             else:
-                CraftCore.log.critical("image directory %s does not exist!" % directory)
+                CraftCore.log.critical("image directory %s does not exist! (%s)" % (directory, archiveDir))
                 return False
 
         if self.subinfo.options.package.movePluginsToBin:

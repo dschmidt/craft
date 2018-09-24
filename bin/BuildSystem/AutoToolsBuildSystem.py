@@ -116,6 +116,7 @@ class AutoToolsBuildSystem(BuildSystemBase):
             if not utils.deleteFile(laFile):
                 return False
 
+        print("FIX INSTALL PREFIX")
         return self._fixInstallPrefix(self.shell.toNativePath(self.installPrefix()))
 
     def runTest(self):

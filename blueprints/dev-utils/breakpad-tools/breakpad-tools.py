@@ -17,6 +17,7 @@ class subinfo(info.infoclass):
 
     def setDependencies(self):
         self.buildDependencies["dev-utils/python2"] = "default"
+        self.buildDependencies["dev-utils/cmake"] = "default"
 
 
 class Package(CMakePackageBase):

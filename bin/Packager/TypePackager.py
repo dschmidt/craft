@@ -25,6 +25,7 @@
 
 from Packager.CreateArchivePackager import *
 from Packager.MacDMGPackager import *
+from Packager.MacPkgPackager import *
 from Packager.MSIFragmentPackager import *
 from Packager.NullsoftInstallerPackager import *
 from Packager.PortablePackager import *

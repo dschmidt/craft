@@ -8,6 +8,7 @@ import multiprocessing
 import os
 import re
 import subprocess
+import io
 
 from CraftBase import *
 from CraftOS.osutils import OsUtils
@@ -115,6 +116,8 @@ class BuildSystemBase(CraftBase):
 
 
     def _fixRpath(self, prefix : str, path : str) -> bool:
+        rpath = "/Users/administrator/CraftMaster/macos-64-clang/lib"
+
         with os.scandir(path) as scan:
             for f in scan:
                 if f.is_symlink():
@@ -123,11 +126,43 @@ class BuildSystemBase(CraftBase):
                     if not self._fixRpath(prefix, f.path):
                         return False
                 elif utils.isBinary(f.path):
+                    print("FIX BINARY: %s" % f.path)
+                    if not utils.system(["install_name_tool", "-add_rpath", rpath, f.path]):
+                        # fix isBinary to not return true for scripts
+                        #return False
+                        print("skip %s" % f.path)
+                        continue
                     for dep in utils.getLibraryDeps(f.path):
-                        if dep.startswith(prefix):
-                            newPrefix = f"@loader_path/{os.path.relpath(self.imageDir(), os.path.dirname(f.path))}/{os.path.relpath(dep, prefix)}"
+                        print("DEP: %s" % dep)
+                        if dep.startswith(prefix) or "/" not in dep:
+                            print("**************")
+                            print("prefix: %s" % prefix)
+                            print("dep: %s" % dep)
+                            print("f.path: %s" % f.path)
+
+                            if dep.startswith(prefix):
+                                relpath = f"{os.path.relpath(self.imageDir(), os.path.dirname(f.path))}"
+                                relPathRev = f"{os.path.relpath(f.path, self.imageDir())}"
+                                relpath2 = f"{os.path.relpath(dep, prefix)}"
+                                blergh = f"{os.path.relpath(dep, rpath)}"
+                                newPrefix = f"@rpath/{blergh}"
+
+                                print("relpath: %s" % relpath)
+                                print("relPathRev: %s" % relPathRev)
+                                print("relpath2: %s" % relpath2)
+                                print("blergh: %s" % blergh)
+                            else:
+                                newPrefix = "@rpath/%s" % dep
+
+                            print("newPrefix: %s" % newPrefix)
+                            print("**************")
+                            # "-add_rpath", "@executable/../Frameworks", "-add_rpath", "@executable/."
                             if not utils.system(["install_name_tool", "-change", dep, newPrefix, f.path]):
                                 return False
+
+                            utils.system(["otool", "-D", f.path])
+
+
         return True
 
     def _fixInstallPrefix(self, prefix=CraftStandardDirs.craftRoot()):
@@ -157,6 +192,7 @@ class BuildSystemBase(CraftBase):
             utils.rmtree(os.path.join(self.installDir(), oldPrefix))
 
         if CraftCore.compiler.isMacOS:
+            print("FIX RPATHS IN %s" % self.installDir())
             if not self._fixRpath(prefix, self.installDir()):
                 return False
 
@@ -201,12 +237,52 @@ class BuildSystemBase(CraftBase):
                     path = os.path.join(pkgconfigPath, pcFile)
                     if not self.patchInstallPrefix([path], oldPrefixes, newPrefix):
                         return False
+
+
         if CraftCore.compiler.isMacOS:
-            files = glob.glob(os.path.join(self.installDir(), "lib", "*.dylib"), recursive=True)
-            for f in files:
-                oldId = subprocess.check_output(["otool", "-D", f], universal_newlines=True)
-                newId = oldId.replace(self.subinfo.buildPrefix, CraftCore.standardDirs.craftRoot())
-                if newId != oldId:
-                    if not utils.system(["install_name_tool", "-id", newId, f]):
-                        return False
+            self.fixId(self.installDir())
+
+        return True
+
+    def fixId(self, path : str) -> bool:
+        with os.scandir(path) as scan:
+                for f in scan:
+                    if f.is_dir():
+                        if not self.fixId(f.path):
+                            return False
+                        continue
+
+                    if not utils.isBinary(f):
+                        continue;
+
+                    print("*********")
+                    print("BINARY: %s" % f.path)
+                    libraryIdOutput = io.StringIO(subprocess.check_output(["otool", "-D", f.path]).decode("utf-8"))
+                    lines = libraryIdOutput.readlines()
+
+                    if len(lines) < 2:
+                        print("WAT: only one line output of otool -D")
+                        #print(lines)
+                        continue
+                    oldId = lines[1].rstrip()
+
+                    print("buildPrefix: %s" % self.subinfo.buildPrefix)
+                    print("craftRoot: %s" % CraftCore.standardDirs.craftRoot())
+
+
+                    newId = oldId.replace(self.subinfo.buildPrefix, CraftCore.standardDirs.craftRoot())
+
+                    if not "/" in newId:
+                        newId = "@rpath/%s" % newId
+
+                    #newId = newId.replace("@rpath/../Frameworks", )
+                    print("OLD ID2: '%s'" % oldId)
+                    print("NEW ID2: '%s'" % newId)
+                    print("*********")
+
+
+
+                    if newId != oldId:
+                        if not utils.system(["install_name_tool", "-id", newId, f.path]):
+                            return False
         return True

@@ -782,10 +782,25 @@ def configureFile(inFile : str, outFile : str, variables : dict) -> bool:
 def sign(fileNames : [str]) -> bool:
     if not CraftCore.settings.getboolean("CodeSigning", "Enabled", False):
         return True
-    if not CraftCore.compiler.isWindows:
-        CraftCore.log.warning("Code signing is currently only supported on Windows")
+    if not (CraftCore.compiler.isWindows or CraftCore.compiler.isMacOS):
+        CraftCore.log.warning("Code signing is currently only supported on Windows and MacOS")
         return True
 
+    if CraftCore.compiler.isWindows:
+        return signWindows(fileNames)
+
+    if CraftCore.compiler.isMacOS:
+        return signMacOS(fileNames);
+
+def signMacOS(fileNames : [str]) -> bool:
+    #for fileName in fileNames:
+        #if not system(['']):
+            #return False
+        #print("**** sign: %s: " % fileName)
+        #utils.system(['codesign'])
+    return True
+
+def signWindows(fileNames : [str]) -> bool:
     signTool = CraftCore.cache.findApplication("signtool")
     if not signTool:
         env = SetupHelper.getMSVCEnv()
@@ -809,11 +824,12 @@ def isBinary(fileName : str) -> bool:
     if os.path.islink(fileName):
         return False
     _, ext = os.path.splitext(fileName)
+    #print("isBinary: %s : %s" % (fileName, ext))
     if CraftCore.compiler.isWindows:
         if ext in {".dll", ".exe"}:
             return True
     else:
-        if ext in {".so", ".dylib"} or os.access(fileName, os.X_OK):
+        if ext in {".so", ".dylib"} or os.access(fileName, os.X_OK) and not os.path.isdir(fileName):
             return True
     return False
 
