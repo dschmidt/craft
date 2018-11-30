@@ -247,6 +247,7 @@ class BuildSystemBase(CraftBase):
 
                     if not pdbs and not exclude.match(os.path.basename(f)):
                         CraftCore.log.warning(f"No pdb file available: {f}")
+                        continue
 
                     for pdb in pdbs:
                         pdbDestination = os.path.join(os.path.dirname(f), os.path.basename(pdb))
